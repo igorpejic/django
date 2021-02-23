@@ -15,6 +15,7 @@ class Publisher(models.Model):
     name = models.CharField(max_length=255)
     num_awards = models.IntegerField()
     duration = models.DurationField(blank=True, null=True)
+    reporter = models.ForeignKey('backends.Reporter', models.CASCADE)
 
     def __str__(self):
         return self.name

@@ -52,6 +52,9 @@ class Post(models.Model):
 class Reporter(models.Model):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
+    square = models.ForeignKey(Square, models.CASCADE)
+    
+
 
     def __str__(self):
         return "%s %s" % (self.first_name, self.last_name)
@@ -65,13 +68,14 @@ class ReporterProxy(Reporter):
 class Article(models.Model):
     headline = models.CharField(max_length=100)
     pub_date = models.DateField()
-    reporter = models.ForeignKey(Reporter, models.CASCADE)
+    reporter = models.ForeignKey(Reporter, models.CASCADE, related_name='articles')
     reporter_proxy = models.ForeignKey(
         ReporterProxy,
         models.SET_NULL,
         null=True,
         related_name='reporter_proxy',
     )
+    pages = models.IntegerField()
 
     def __str__(self):
         return self.headline

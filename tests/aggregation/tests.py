@@ -18,6 +18,7 @@ from django.utils import timezone
 
 from .models import Author, Book, Publisher, Store
 
+from backends.models import Reporter, Square
 
 class AggregateTestCase(TestCase):
 
@@ -41,11 +42,14 @@ class AggregateTestCase(TestCase):
         cls.a8.friends.add(cls.a9)
         cls.a9.friends.add(cls.a8)
 
-        cls.p1 = Publisher.objects.create(name='Apress', num_awards=3, duration=datetime.timedelta(days=1))
-        cls.p2 = Publisher.objects.create(name='Sams', num_awards=1, duration=datetime.timedelta(days=2))
-        cls.p3 = Publisher.objects.create(name='Prentice Hall', num_awards=7)
-        cls.p4 = Publisher.objects.create(name='Morgan Kaufmann', num_awards=9)
-        cls.p5 = Publisher.objects.create(name="Jonno's House of Books", num_awards=0)
+
+        square = Square.objects.create(root=1, square=2)
+        reporter = Reporter.objects.create(first_name='reporter', square=square)
+        cls.p1 = Publisher.objects.create(name='Apress', num_awards=3, duration=datetime.timedelta(days=1), reporter=reporter)
+        cls.p2 = Publisher.objects.create(name='Sams', num_awards=1, duration=datetime.timedelta(days=2), reporter=reporter)
+        cls.p3 = Publisher.objects.create(name='Prentice Hall', num_awards=7, reporter=reporter)
+        cls.p4 = Publisher.objects.create(name='Morgan Kaufmann', num_awards=9, reporter=reporter)
+        cls.p5 = Publisher.objects.create(name="Jonno's House of Books", num_awards=0, reporter=reporter)
 
         cls.b1 = Book.objects.create(
             isbn='159059725', name='The Definitive Guide to Django: Web Development Done Right',
@@ -1267,6 +1271,36 @@ class AggregateTestCase(TestCase):
         long_books_count_breakdown = Publisher.objects.values_list(
             Subquery(long_books_count_qs, IntegerField()),
         ).annotate(total=Count('*'))
+        self.assertEqual(dict(long_books_count_breakdown), {None: 1, 1: 4})
+
+    @skipUnlessDBFeature('supports_subqueries_in_group_by')
+    def test_group_by_subquery_annotation_with_conditional(self):
+        """
+        Subquery annotations are included in the GROUP BY if they are
+        grouped against when using Case.
+        """
+        long_books_count_qs = Book.objects.filter(
+            id__in=Subquery(
+                Book.objects.filter(
+                    id=OuterRef(OuterRef('reporter__square')),
+                ).values('id')
+            )
+        ).values('id')[:1]
+
+        long_books_count_breakdown = Publisher.objects.annotate(total=Case(
+            When(
+                num_awards__gte=-100,
+                then=Subquery(queryset=long_books_count_qs, output_field=IntegerField())
+            ),
+            When(
+                num_awards__lte=2,
+                then=Count('reporter__articles__pages')
+            ),
+        )).filter(reporter__articles__headline__startswith='1').values()
+
+        print(long_books_count_breakdown.values())
+        print(long_books_count_breakdown.query)
+
         self.assertEqual(dict(long_books_count_breakdown), {None: 1, 1: 4})
 
     @skipUnlessDBFeature('supports_subqueries_in_group_by')
