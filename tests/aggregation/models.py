@@ -1,5 +1,10 @@
 from django.db import models
 
+class Country(models.Model):
+    name = models.CharField(max_length=255)
+
+    def __str(self):
+        return self.name
 
 class Author(models.Model):
     name = models.CharField(max_length=100)
@@ -15,7 +20,7 @@ class Publisher(models.Model):
     name = models.CharField(max_length=255)
     num_awards = models.IntegerField()
     duration = models.DurationField(blank=True, null=True)
-    reporter = models.ForeignKey('backends.Reporter', models.CASCADE)
+    country = models.ForeignKey(Country, models.CASCADE, related_name='publishers')
 
     def __str__(self):
         return self.name

@@ -16,7 +16,7 @@ from django.test.testcases import skipUnlessDBFeature
 from django.test.utils import Approximate, CaptureQueriesContext
 from django.utils import timezone
 
-from .models import Author, Book, Publisher, Store
+from .models import Author, Book, Publisher, Store, Country
 
 from backends.models import Reporter, Square
 
@@ -44,12 +44,12 @@ class AggregateTestCase(TestCase):
 
 
         square = Square.objects.create(root=1, square=2)
-        reporter = Reporter.objects.create(first_name='reporter', square=square)
-        cls.p1 = Publisher.objects.create(name='Apress', num_awards=3, duration=datetime.timedelta(days=1), reporter=reporter)
-        cls.p2 = Publisher.objects.create(name='Sams', num_awards=1, duration=datetime.timedelta(days=2), reporter=reporter)
-        cls.p3 = Publisher.objects.create(name='Prentice Hall', num_awards=7, reporter=reporter)
-        cls.p4 = Publisher.objects.create(name='Morgan Kaufmann', num_awards=9, reporter=reporter)
-        cls.p5 = Publisher.objects.create(name="Jonno's House of Books", num_awards=0, reporter=reporter)
+        cls.c1 = Country.objects.create(name='U.S.A')
+        cls.p1 = Publisher.objects.create(name='Apress', num_awards=3, duration=datetime.timedelta(days=1), country=cls.c1)
+        cls.p2 = Publisher.objects.create(name='Sams', num_awards=1, duration=datetime.timedelta(days=2), country=cls.c1)
+        cls.p3 = Publisher.objects.create(name='Prentice Hall', num_awards=7, country=cls.c1)
+        cls.p4 = Publisher.objects.create(name='Morgan Kaufmann', num_awards=9, country=cls.c1)
+        cls.p5 = Publisher.objects.create(name="Jonno's House of Books", num_awards=0, country=cls.c1)
 
         cls.b1 = Book.objects.create(
             isbn='159059725', name='The Definitive Guide to Django: Web Development Done Right',
@@ -1282,24 +1282,21 @@ class AggregateTestCase(TestCase):
         long_books_count_qs = Book.objects.filter(
             id__in=Subquery(
                 Book.objects.filter(
-                    id=OuterRef(OuterRef('reporter__square')),
+                    name=OuterRef(OuterRef('country__name')),
                 ).values('id')
             )
         ).values('id')[:1]
 
         long_books_count_breakdown = Publisher.objects.annotate(total=Case(
             When(
-                num_awards__gte=-100,
+                num_awards__gte=2,
                 then=Subquery(queryset=long_books_count_qs, output_field=IntegerField())
             ),
             When(
                 num_awards__lte=2,
-                then=Count('reporter__articles__pages')
+                then=Count('country__publishers')
             ),
-        )).filter(reporter__articles__headline__startswith='1').values()
-
-        print(long_books_count_breakdown.values())
-        print(long_books_count_breakdown.query)
+        ))
 
         self.assertEqual(dict(long_books_count_breakdown), {None: 1, 1: 4})
 
