@@ -44,7 +44,7 @@ class AggregateTestCase(TestCase):
 
 
         square = Square.objects.create(root=1, square=2)
-        cls.c1 = Country.objects.create(name='U.S.A')
+        cls.c1 = Country.objects.create(name='Practical Django Projects')
         cls.p1 = Publisher.objects.create(name='Apress', num_awards=3, duration=datetime.timedelta(days=1), country=cls.c1)
         cls.p2 = Publisher.objects.create(name='Sams', num_awards=1, duration=datetime.timedelta(days=2), country=cls.c1)
         cls.p3 = Publisher.objects.create(name='Prentice Hall', num_awards=7, country=cls.c1)
@@ -1279,26 +1279,26 @@ class AggregateTestCase(TestCase):
         Subquery annotations are included in the GROUP BY if they are
         grouped against when using Case.
         """
-        long_books_count_qs = Book.objects.filter(
+        books_with_same_name_as_country = Book.objects.filter(
             id__in=Subquery(
                 Book.objects.filter(
                     name=OuterRef(OuterRef('country__name')),
                 ).values('id')
             )
         ).values('id')[:1]
-
-        long_books_count_breakdown = Publisher.objects.annotate(total=Case(
+        books_breakdown = Publisher.objects.annotate(total_books=Case(
             When(
                 num_awards__gte=2,
-                then=Subquery(queryset=long_books_count_qs, output_field=IntegerField())
+                then=Subquery(books_with_same_name_as_country, IntegerField())
             ),
             When(
-                num_awards__lte=2,
+                num_awards__lt=0,
                 then=Count('country__publishers')
             ),
         ))
-
-        self.assertEqual(dict(long_books_count_breakdown), {None: 1, 1: 4})
+        self.assertEqual(books_breakdown.get(id=self.p1.id).total_books, 1)
+        for publisher_without_such_books in books_breakdown.exclude(id=self.p1.id):
+            self.assertEqual(publisher_without_such_books.total_books, None)
 
     @skipUnlessDBFeature('supports_subqueries_in_group_by')
     def test_group_by_exists_annotation(self):
